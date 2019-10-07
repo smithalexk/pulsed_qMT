@@ -1,89 +1,29 @@
-%% Runs SP qMT for MPM Comparison
-% -Loads MT, MFA T1, B1, and B0 Data
-% -Applies Yarnykh's fit to data
+function RunSPqMT(PathToData, PathToAnalysis, MTwFile, MTrefFile, R1File, B1File, B0File, MEDICFile, MTJSONFile)
+%% RunSPqMT - Calculates the Single Point qMT data 
+% Will calculate the PSR assuming a 7.68 ms, 500 degree,
+% pulse set at an offset of 2.5 kHz is used, and using the constrained
+% parameters taken from:
+%   www.doi.org/10.1016/j.nicl.2017.07.010
 %
+% ret = RunSPqMT(PathToData, PathToAnalysis, MTwFile, MTrefFile, R1File, B1File, B0File, MEDICFile, MTJSONFile)
 %
-% Other m-files required: script_dir, setPulseEnvelope,
-% fit_SSPulseMT_yarnykh_1pt, read_avw, NIFTISubDir
-%
-% Author:  asmith
-% Date:    23-Oct-2018
-% Version: 1.0
-% Changelog:
-%
-% 20181023 - initial creation
+% Args:
+%   PathToData      - File Path to where Data is stored
+%   PathToAnalysis  - File Path to where processed Data will be stored
+%   PathToAnalysis  - File Path to where processed Data will be stored
+%   XXFile  - Filename (including extension) for Respective image file
+%                   MTwFile, MtrefFile, R1File, B1File, B0File, MEDICFile
+%   MTJSONFile - Filename (including extension) for the MT JSON File. Used
+%                   to collect scan parameter information.
 %
 %------------- BEGIN CODE --------------
-clearvars; close all; clc;
-script_dir;
-
-%% For Eventual Scripting with SCT!!
-
-% MTw images to MEDIC
-% sct_register_multimodal -i ../qMT_dw25_wMTC_0014/qMT_dw25_wMTC.nii -d ../t2_me2d_tra_6echos_upper_0011/MEDIC.nii -param step=1,type=im,algo=slicereg,metric=MeanSquares:step=2,type=im,algo=bsplinesyn,metric=MeanSquares,iter=5,shrink=2
-% B0 Image to MEDIC
-% sct_register_multimodal -i ../fieldmap_gre_MPM_0015/B0data.nii -d ../t2_me2d_tra_6echos_upper_0011/MEDIC.nii -param step=1,type=im,algo=slicereg,metric=MeanSquares
-% B1 Image to MEDIC
-% sct_register_multimodal -i ../Maps/Supplementary/B1ref.nii -d ../t2_me2d_tra_6echos_upper_0011/MEDIC.nii -param step=1,type=im,algo=slicereg,metric=MeanSquares
-% Create mask
-%  sct_create_mask -i ../t2_me2d_tra_6echos_upper_0011/MEDIC.nii -p center
-% Apply transforms
-% sct_apply_transfo -i ../Maps/Supplementary/B1map.nii -d ../t2_me2d_tra_6echos_upper_0004/MEDIC.nii -w warp_MTw2MEDIC.nii.gz 
-
-%%
-
-% Set Path to Data and Analysis
-PathToData = '/Users/asmith/Documents/Research/Oxford/qMRI_MT/SPqMTvsMPM/Data/592/RegDir';
-PathToAnalysis = '/Users/asmith/Documents/Research/Oxford/qMRI_MT/SPqMTvsMPM/Analysis/vol592';
-
 
 gamma = 42.58*2*pi; % Larmor - rad/s-uT
-%% Set up Struct to load Data into
-
-
-
-% VolNames = NIFTISubDir(PathToData);
-% 
-% % Find Struct with VFA T1 Data
-% for ii = 1:numel(VolNames)
-%     if ~isempty(strfind(VolNames(ii).name,'R1'))
-%         R1idx = ii;
-%     end
-%     if ~isempty(strfind(VolNames(ii).name,'T1w'))
-%         T1widx = ii;
-%     end
-%     if ~isempty(strfind(VolNames(ii).name,'rB0corr'))
-%         B0idx = ii;
-%     end
-%     FolderSep = strsplit(VolNames(ii).folder,'/');
-%     if ~isempty(regexpi(FolderSep{end},'B1mapCalc')) && ~isempty(regexpi(VolNames(ii).name,'rsF'))
-%         B1idx = ii;
-%     end
-%     FolderSep = strsplit(VolNames(ii).folder,'/');
-%     if ~isempty(regexpi(FolderSep{end},'Default_wMTC')) && ~isempty(regexpi(VolNames(ii).name,'rsF'))
-%         defMTCidx = ii;
-%     end
-%     if ~isempty(regexpi(FolderSep{end},'Default_woMTC'))&& ~isempty(regexpi(VolNames(ii).name,'rsF'))
-%         Refidx = ii;
-%     end
-%     if ~isempty(regexpi(FolderSep{end},'dw25_wMTC'))&& ~isempty(regexpi(VolNames(ii).name,'rsF'))
-%         dw25MTCidx = ii;
-%     end
-%     if ~isempty(regexpi(VolNames(ii).name,'Mag_BET'))
-%         Maskidx = ii;
-%     end
-% end
-
-% Load Common Data
-R1 = read_avw(sprintf('%s/../R1Map.nii',PathToData));
-corrB1 = read_avw(sprintf('%s/B1map_reg.nii',PathToData))./100;
-corrB0 = read_avw(sprintf('%s/B0map_reg.nii.gz',PathToData));
 
 %% Default qMT Analysis
 
 % Pull qMT Parameters:
-JsonFile = '/Users/asmith/Documents/Research/Oxford/qMRI_MT/SPqMTvsMPM/Data/585/qMT_dw25_wMTC_0021/sF3T_2013_40_585-142533-00001-00001-1.json';
-qMTAcqPar = jsondecode(fileread(JsonFile));
+qMTAcqPar = jsondecode(fileread(MTJSONFile));
 
 % qMT Data Prep
 pwMT = 7.68e-3;
@@ -102,14 +42,18 @@ TR = [TR*10^-3, TR*10^-3];
 
 
 % Load All Data for Analysis
-MTw = read_avw(sprintf('%s/qMT_dw25_wMTC_reg.nii',PathToData));
-MTRef = read_avw(sprintf('%s/qMT_dw25_woMTC_reg.nii',PathToData));
-Mask = read_avw(sprintf('%s/MEDIC_seg.nii',PathToData)) > 0;
+MTw = read_avw(sprintf('%s/%s',PathToData, MTwFile));
+MTRef = read_avw(sprintf('%s/%s',PathToData, MTrefFile));
+Mask = read_avw(sprintf('%s/%s',PathToData, MEDICFile)) > 0;
+R1 = read_avw(sprintf('%s/%s',PathToData, R1File));
+
+corrB1 = read_avw(sprintf('%s/%s',PathToData, B1File));
+corrB0 = read_avw(sprintf('%s/%s',PathToData, B0File));
 
 [cols, rows, slices] = ind2sub(size(Mask),find(Mask == 1));
 
 % 1 Parm Fit
-kmf = 9;
+kmf = 8.95;
 T2fR1f = 0.0232;
 T2m = 10.51e-6;
 
@@ -136,23 +80,26 @@ for rr = 1:length(rows)
     
     M = [MTw(xx,yy,zz)./MTRef(xx,yy,zz); 1];
     
-    
-    [PSR(xx,yy,zz),...
-     chi2(xx,yy,zz),...
-     chi2p(xx,yy,zz),~,...
-     resn(xx,yy,zz)] = ...
-        fit_SSPulseMT_yarnykh_1pt(p0,M,pwMT,ts,TR,R1obs,cthetaEX,cB1eMT,...
-        deltaMT+corrB0(xx,yy,zz),'super-lorentzian',kmf,T2m,T2fR1f);
-    
-    twaitbar(rr/length(rows));
+    try
+        [PSR(xx,yy,zz),...
+            chi2(xx,yy,zz),...
+            chi2p(xx,yy,zz),~,...
+            resn(xx,yy,zz)] = ...
+            fit_SSPulseMT_yarnykh_1pt(p0,M,pwMT,ts,TR,R1obs,cthetaEX,cB1eMT,...
+            deltaMT+corrB0(xx,yy,zz),'super-lorentzian',kmf,T2m,T2fR1f);
+    catch ME
+        msg = sprintf("Error at voxel: [%i, %i, %i]",xx,yy,zz);
+        causeException = MException("MATLAB:fit_SSPulseMT_yarnykh_1pt",msg);
+        ME = addCause(ME,causeException);
+        rethrow(ME);
+    end
     
 end
 
-% save(sprintf('%s/PSRData',PathToAnalysis));
 
 %% Save PSR as NIFTI file
 
-MTw = niftiinfo(sprintf('%s/qMT_dw25_wMTC_reg.nii',PathToData));
+MTw = niftiinfo(sprintf('%s/%s',PathToData,MTwFile));
 niftiwrite(PSR,sprintf('%s/PSR',PathToAnalysis),MTw);
 
 %------------- END OF CODE --------------
